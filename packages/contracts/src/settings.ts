@@ -742,13 +742,22 @@ export const CodexSettings = makeProviderSettingsSchema(
         description: "Additional CLI arguments passed to codex app-server on session start.",
       }),
     ),
+    modelPrefix: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Model prefix",
+        description:
+          "Prepended to every model ID sent to the provider, for routers that namespace models. For example, cc sends claude-opus-5-5 as cc/claude-opus-5-5. A trailing / - _ . or : is kept as typed.",
+        providerSettingsForm: { placeholder: "e.g. cc", clearWhenEmpty: "omit" },
+      }),
+    ),
     customModels: Schema.Array(CustomModelSetting).pipe(
       Schema.withDecodingDefault(Effect.succeed([])),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
     ),
   },
   {
-    order: ["binaryPath", "homePath", "shadowHomePath", "launchArgs"],
+    order: ["binaryPath", "homePath", "shadowHomePath", "launchArgs", "modelPrefix"],
   },
 );
 export type CodexSettings = typeof CodexSettings.Type;
@@ -812,6 +821,15 @@ export const ClaudeSettings = makeProviderSettingsSchema(
         },
       }),
     ),
+    modelPrefix: TrimmedString.pipe(
+      Schema.withDecodingDefault(Effect.succeed("")),
+      Schema.annotateKey({
+        title: "Model prefix",
+        description:
+          "Prepended to every model ID sent to the provider, for routers that namespace models. For example, cc sends claude-opus-5-5 as cc/claude-opus-5-5. A trailing / - _ . or : is kept as typed.",
+        providerSettingsForm: { placeholder: "e.g. cc", clearWhenEmpty: "omit" },
+      }),
+    ),
     autoCompactWindow: TrimmedString.check(
       Schema.isPattern(CLAUDE_AUTO_COMPACT_WINDOW_PATTERN),
     ).pipe(
@@ -841,7 +859,14 @@ export const ClaudeSettings = makeProviderSettingsSchema(
     ),
   },
   {
-    order: ["binaryPath", "homePath", "autoCompactWindow", "idleCompaction", "launchArgs"],
+    order: [
+      "binaryPath",
+      "homePath",
+      "autoCompactWindow",
+      "idleCompaction",
+      "launchArgs",
+      "modelPrefix",
+    ],
   },
 );
 export type ClaudeSettings = typeof ClaudeSettings.Type;

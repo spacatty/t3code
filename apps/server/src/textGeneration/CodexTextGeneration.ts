@@ -29,6 +29,7 @@ import {
   toJsonSchemaObject,
 } from "@t3tools/provider-core/server/textGenerationUtils";
 import {
+  applyModelPrefix,
   codexModelFamily,
   getModelSelectionStringOptionValue,
   readCustomModelEntries,
@@ -310,7 +311,7 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
           "-s",
           "read-only",
           "--model",
-          model,
+          applyModelPrefix(effectiveConfig.modelPrefix, model),
           "--config",
           `model_reasoning_effort="${reasoningEffort}"`,
           ...(serviceTier ? ["--config", `service_tier="${serviceTier}"`] : []),

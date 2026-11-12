@@ -3,6 +3,8 @@ import { ProviderInstanceId, type ModelCapabilities } from "@t3tools/contracts";
 
 import {
   applyClaudePromptEffortPrefix,
+  applyModelPrefix,
+  stripModelPrefix,
   buildExplicitProviderOptionSelectionsFromDescriptors,
   buildProviderOptionSelectionsFromDescriptors,
   createModelCapabilities,
@@ -128,6 +130,23 @@ describe("applyClaudePromptEffortPrefix", () => {
     expect(applyClaudePromptEffortPrefix("/home/theo/app.ts crashed on load", "ultrathink")).toBe(
       "Ultrathink:\n/home/theo/app.ts crashed on load",
     );
+  });
+});
+
+describe("applyModelPrefix", () => {
+  it("prepends a trimmed prefix once and leaves the model alone otherwise", () => {
+    expect(applyModelPrefix("", "claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(applyModelPrefix(undefined, "claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(applyModelPrefix("cc/", "claude-opus-5-5")).toBe("cc/claude-opus-5-5");
+    expect(applyModelPrefix("cc/", "cc/claude-opus-5-5")).toBe("cc/claude-opus-5-5");
+    expect(applyModelPrefix("  cc/ ", "claude-opus-5-5")).toBe("cc/claude-opus-5-5");
+    expect(applyModelPrefix("cc", "claude-opus-5-5")).toBe("cc/claude-opus-5-5");
+    expect(applyModelPrefix("gpt", "gpt-5.4")).toBe("gpt/gpt-5.4");
+    expect(applyModelPrefix("acme-", "gpt-5.4")).toBe("acme-gpt-5.4");
+    expect(stripModelPrefix("cc", "cc/claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(stripModelPrefix("cc/", "cc/claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(stripModelPrefix("cc/", "claude-opus-5-5")).toBe("claude-opus-5-5");
+    expect(stripModelPrefix("", "cc/claude-opus-5-5")).toBe("cc/claude-opus-5-5");
   });
 });
 

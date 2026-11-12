@@ -16,6 +16,7 @@ import {
 import {
   getModelSelectionBooleanOptionValue,
   getModelSelectionStringOptionValue,
+  applyModelPrefix,
   getProviderOptionDescriptors,
 } from "@t3tools/shared/model";
 import {
@@ -220,7 +221,10 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
           "--json-schema",
           jsonSchemaStr,
           "--model",
-          resolveClaudeCatalogApiModelId(catalog, resolvedModelSelection),
+          applyModelPrefix(
+            claudeSettings.modelPrefix,
+            resolveClaudeCatalogApiModelId(catalog, resolvedModelSelection),
+          ),
           ...(cliEffort ? ["--effort", cliEffort] : []),
           "--settings",
           settingsJson,

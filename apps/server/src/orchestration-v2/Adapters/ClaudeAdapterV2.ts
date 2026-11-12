@@ -83,7 +83,11 @@ import {
 } from "@t3tools/shared/mcpApp";
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import { applyClaudePromptEffortPrefix } from "@t3tools/shared/model";
+import {
+  applyClaudePromptEffortPrefix,
+  applyModelPrefix,
+  stripModelPrefix,
+} from "@t3tools/shared/model";
 import { compareSemverVersions } from "@t3tools/shared/semver";
 import {
   CLAUDE_RESUME_COMPACTION_COMPACT_ANSWER,
@@ -2041,7 +2045,7 @@ export function makeClaudeQueryOptions(input: {
         } as ClaudeSdkSettings);
   const deviceInstructions = input.mcpServers !== undefined && input.deviceToolsAvailable === true;
   const options: ClaudeAgentSdkQueryOptions = {
-    model: compiledSelection.apiModelId,
+    model: applyModelPrefix(input.settings?.modelPrefix, compiledSelection.apiModelId),
     // T3 names threads; a supplied title skips Claude's redundant naming request.
     ...(input.title === undefined ? {} : { title: input.title }),
     tools: claudeAgentSdkQueryToolsForSdk(selectedTools),
@@ -6755,7 +6759,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             );
           return model === null || model === "<synthetic>"
             ? undefined
-            : canonicalClaudeSubagentModel(modelCatalog, model);
+            : canonicalClaudeSubagentModel(
+                modelCatalog,
+                stripModelPrefix(adapterOptions.settings.modelPrefix, model),
+              );
         });
 
         // Resume frames reference the launch call, but task_started names SendMessage; recover the mapping from CLI storage.
@@ -10135,11 +10142,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             if (message.parent_tool_use_id === null) {
               // CLI notices and API errors arrive as assistant messages from "<synthetic>".
               if (message.message.model && message.message.model !== "<synthetic>") {
-                context.rootModels.add(message.message.model);
-                context.executedModel = resolveClaudeReportedModelSlug(
-                  modelCatalog,
+                const reportedModel = stripModelPrefix(
+                  adapterOptions.settings.modelPrefix,
                   message.message.model,
                 );
+                context.rootModels.add(reportedModel);
+                context.executedModel = resolveClaudeReportedModelSlug(modelCatalog, reportedModel);
               }
               // Subagent uuids exist only in the sidechain transcript, so resume and fork cannot target them.
               context.nativeMessageCursor = message.uuid;
@@ -10431,7 +10439,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             const model =
               snapshotModel.length === 0 || snapshotModel === "<synthetic>"
                 ? undefined
-                : canonicalClaudeSubagentModel(modelCatalog, snapshotModel);
+                : canonicalClaudeSubagentModel(
+                    modelCatalog,
+                    stripModelPrefix(adapterOptions.settings.modelPrefix, snapshotModel),
+                  );
             if (parentToolUseId !== null && model !== undefined) {
               const subagent = yield* resolveSubagentByToolUseId(context, parentToolUseId);
               if (subagent === undefined) {
@@ -11909,7 +11920,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           yield* (
             live.selection.queryIdentity === "" ||
             live.selection.apiModelId !== selection.apiModelId
-              ? live.query.setModel(selection.apiModelId)
+              ? live.query.setModel(
+                  applyModelPrefix(adapterOptions.settings.modelPrefix, selection.apiModelId),
+                )
               : Effect.void
           ).pipe(
             Effect.andThen(

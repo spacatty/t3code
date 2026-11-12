@@ -473,6 +473,25 @@ export function toCustomModelSetting(entry: CustomModelDefinition): CustomModelS
   };
 }
 
+// A bare namespace like "cc" means "cc/"; an explicit trailing separator is kept as typed.
+function normalizeModelPrefix(prefix: string | undefined): string {
+  const trimmed = prefix?.trim() ?? "";
+  if (!trimmed) return "";
+  return /[/:._-]$/.test(trimmed) ? trimmed : `${trimmed}/`;
+}
+
+/** Prepends a router namespace (e.g. "cc" or "cc/") to a provider model ID. */
+export function applyModelPrefix(prefix: string | undefined, model: string): string {
+  const normalized = normalizeModelPrefix(prefix);
+  if (!normalized || model.startsWith(normalized)) return model;
+  return normalized + model;
+}
+
+export function stripModelPrefix(prefix: string | undefined, model: string): string {
+  const normalized = normalizeModelPrefix(prefix);
+  return normalized && model.startsWith(normalized) ? model.slice(normalized.length) : model;
+}
+
 export function resolveSelectableModel(
   provider: ProviderDriverKind,
   value: string | null | undefined,

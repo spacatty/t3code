@@ -48,7 +48,12 @@ import {
   dynamicToolSurface,
   dynamicToolTitle,
 } from "@t3tools/shared/toolActivity";
-import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@t3tools/shared/model";
+import {
+  applyModelPrefix,
+  getModelSelectionStringOptionValue,
+  modelSelectionsEqual,
+  stripModelPrefix,
+} from "@t3tools/shared/model";
 import { appendGeneratedImageEmbeds } from "@t3tools/shared/generatedImageMarkdown";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import { mcpToolResultOutput } from "@t3tools/shared/toolOutput";
@@ -776,6 +781,7 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
     readonly codexInput: ReadonlyArray<CodexSchema.V2TurnStartParams__UserInput>;
     readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
     readonly modelSelection: ModelSelection;
+    readonly modelPrefix?: string;
     readonly hasT3Mcp?: boolean;
     readonly browserToolsAvailable?: boolean;
     readonly deviceToolsAvailable?: boolean;
@@ -785,6 +791,7 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
     /** The user's `model_reasoning_summary` from the Codex config, when set. */
     readonly configuredReasoningSummary?: CodexSchema.V2TurnStartParams__ReasoningSummary;
   }) {
+    const model = applyModelPrefix(input.modelPrefix, input.modelSelection.model);
     const runtimeModeDefaults = codexRuntimeModeTurnDefaults(input.runtimePolicy.runtimeMode);
     const approvalPolicy =
       input.runtimePolicy.approvalPolicy === undefined
@@ -829,7 +836,7 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
       input: input.codexInput,
       ...(additionalContext ? { additionalContext } : {}),
       cwd: input.runtimePolicy.cwd,
-      model: input.modelSelection.model,
+      model,
       // Catalogues can default summaries to "none", and turn/start overrides the user's config,
       // so pass theirs through or `auto`: some providers (Amazon Bedrock) reject `detailed`.
       summary: input.configuredReasoningSummary ?? "auto",
@@ -843,7 +850,7 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
       collaborationMode: {
         mode: input.runtimePolicy.interactionMode,
         settings: {
-          model: input.modelSelection.model,
+          model,
           ...(effort === undefined ? {} : { reasoning_effort: effort }),
         },
       },
@@ -1432,6 +1439,7 @@ function codexThreadRuntimeParams(input: {
   readonly threadId: ThreadId | null;
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly modelSelection?: { readonly model: string };
+  readonly modelPrefix?: string;
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
 }): {
   readonly cwd?: string;
@@ -1449,7 +1457,9 @@ function codexThreadRuntimeParams(input: {
         };
   return {
     ...(input.runtimePolicy?.cwd == null ? {} : { cwd: input.runtimePolicy.cwd }),
-    ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
+    ...(input.modelSelection === undefined
+      ? {}
+      : { model: applyModelPrefix(input.modelPrefix, input.modelSelection.model) }),
     config: {
       ...CODEX_THREAD_CONFIG,
       // One app-server serves many threads, so the id goes in per-thread shell config, not its env.
@@ -3288,7 +3298,10 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     response.thread.id === input.nativeThreadId && response.thread.model?.trim()
                       ? {
                           thread: response.thread,
-                          model: response.thread.model,
+                          model: stripModelPrefix(
+                            adapterOptions.settings.modelPrefix,
+                            response.thread.model,
+                          ),
                           reasoningEffort: response.thread.reasoningEffort,
                         }
                       : null,
@@ -4815,9 +4828,19 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         );
         yield* client.handleServerNotification("model/rerouted", (payload) =>
           Effect.sync(() => {
-            reroutedTurnModels.set(payload.turnId, payload.toModel);
+            reroutedTurnModels.set(
+              payload.turnId,
+              stripModelPrefix(adapterOptions.settings.modelPrefix, payload.toModel),
+            );
             reroutedThreads.add(payload.threadId);
-          }).pipe(Effect.andThen(updateSubagentSelection(payload.threadId, payload.toModel))),
+          }).pipe(
+            Effect.andThen(
+              updateSubagentSelection(
+                payload.threadId,
+                stripModelPrefix(adapterOptions.settings.modelPrefix, payload.toModel),
+              ),
+            ),
+          ),
         );
 
         yield* client.handleServerNotification("mcpServer/startupStatus/updated", (payload) =>
@@ -7253,6 +7276,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               codexInput,
               runtimePolicy: turnInput.runtimePolicy,
               modelSelection: turnInput.modelSelection,
+              modelPrefix: adapterOptions.settings.modelPrefix,
               hasT3Mcp: mcpSession !== undefined,
               browserToolsAvailable: mcpSession?.browserToolsAvailable ?? true,
               deviceToolsAvailable: mcpSession?.capabilities?.has("device") ?? false,
@@ -7581,6 +7605,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     threadId: threadInput.threadId,
                     mcpSession,
                     modelSelection: threadInput.modelSelection,
+                    modelPrefix: adapterOptions.settings.modelPrefix,
                     runtimePolicy: threadInput.runtimePolicy,
                   }),
                 ),
@@ -7616,6 +7641,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                   ...(threadInput.modelSelection === undefined
                     ? {}
                     : { modelSelection: threadInput.modelSelection }),
+                  modelPrefix: adapterOptions.settings.modelPrefix,
                   ...(threadInput.runtimePolicy === undefined
                     ? {}
                     : { runtimePolicy: threadInput.runtimePolicy }),
@@ -8407,6 +8433,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     threadId: threadInput.providerThread.appThreadId,
                     mcpSession: yield* readMcpSession(threadInput.providerThread.appThreadId),
                     modelSelection: input.modelSelection,
+                    modelPrefix: adapterOptions.settings.modelPrefix,
                     runtimePolicy: input.runtimePolicy,
                   }),
                 });
@@ -8459,6 +8486,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                   ...(threadInput.modelSelection === undefined
                     ? {}
                     : { modelSelection: threadInput.modelSelection }),
+                  modelPrefix: adapterOptions.settings.modelPrefix,
                   ...(threadInput.runtimePolicy === undefined
                     ? {}
                     : { runtimePolicy: threadInput.runtimePolicy }),

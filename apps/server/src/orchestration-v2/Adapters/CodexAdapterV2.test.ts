@@ -191,6 +191,24 @@ describe("CodexAdapterV2 runtime policy", () => {
       }),
   );
 
+  it.effect("applies the Codex modelPrefix to turn model and collaboration settings", () =>
+    Effect.gen(function* () {
+      const params = yield* CodexAdapterV2.buildCodexTurnStartParams({
+        nativeThreadId: "native-model-prefix",
+        codexInput: [{ type: "text", text: "test" }],
+        runtimePolicy: { runtimeMode: "full-access", interactionMode: "default", cwd: null },
+        modelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-5.4",
+        },
+        modelPrefix: "cc/",
+      });
+
+      assert.equal(params.model, "cc/gpt-5.4");
+      assert.equal(params.collaborationMode?.settings.model, "cc/gpt-5.4");
+    }),
+  );
+
   it.effect("derives concrete Codex turn policies from every T3 runtime mode", () =>
     Effect.gen(function* () {
       const build = (
